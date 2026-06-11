@@ -1,0 +1,39 @@
+const mongoose = require("mongoose");
+
+const transactionSchema = new mongoose.Schema({
+    fromAccount: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "account",
+        required: [true, "Transaction must have a source account"],
+        index: true, // Add an index to the fromAccount field for faster queries
+    },
+    toAccount: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "account",
+        required: [true, "Transaction must have a destination account"],
+        index: true, // Add an index to the toAccount field for faster queries
+    },
+    status: {
+        type: String,
+        enum: ["PENDING", "COMPLETED", "FAILED","REVERSED"],
+        Message: "Status must be either PENDING, COMPLETED, FAILED or REVERSED",
+        default: "PENDING",
+     },
+     amount: {
+        type: Number,
+        required: [true, "Amount is required for creating a transaction"],
+        min: [0, "Amount must be a positive number"],
+     },
+     idempotencyKey: { //
+        type: String,
+        required: [true, "Idempotency key is required for creating a transaction"],
+        index: true, // Add an index to the idempotencyKey field for faster queries
+        unique: [true, "Idempotency key must be unique for each transaction to prevent duplicate transactions"],
+     },
+}, {
+    timestamps: true, // Automatically add createdAt and updatedAt fields to the schema
+});
+
+const transactionModel = mongoose.model("transaction", transactionSchema);
+
+module.exports = transactionModel;
