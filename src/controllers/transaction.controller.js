@@ -3,22 +3,23 @@ const transactionModel = require("../models/transaction.model");
 const ledgerModel = require("../models/ledger.model");
 const accountModel = require("../models/account.model");
 const emailService = require("../services/email.service");
+const mongoose = require("mongoose");
 
 // This controller will handle the transaction creation process and return the created transaction details in the response
 
 /**
  * - Create a new transaction
  * The 10-Step transfer flow:
-    * 1. Validate the request body to ensure that all required fields (fromAccount, toAccount, amount, idempotencyKey) are present and valid.
-    * 2. Validate the idempotencyKey to ensure that it is unique and has not been used for a previous transaction. If a transaction with the same idempotencyKey already exists, return an appropriate response based on the status of the existing transaction (e.g., if it's still pending, if it has completed, or if it has failed).
-    * 3. Check the status of both the fromAccount and toAccount to ensure that they are active and eligible for transactions. If either account is inactive or has any restrictions, return an appropriate error response indicating the issue with the accounts.
-    * 4. Derive the sender's balance from the ledger and validate that the sender has sufficient balance to proceed with the transaction.
-    * 5. Create a new transaction record in the database with a status of "PENDING" and associate it with the fromAccount and toAccount.
-    * 6. Create DEBIT ledger entry
-    * 7.  Create CREDIT ledger entry
-    * 8. mark transaction COMPLETED
-    * 9. Commit mongoDB session
-    * 10. Send email notification
+    * 1. Validate request , in short check if fromAccount, toAccount, amount and idempotencyKey are present in the request body
+    * 2. Validate idempotencyKey , in short check if a transaction with the same idempotencyKey already exists in the database, if yes then return the existing transaction details in the response
+    * 3. Check account status , in short check if both fromAccount and toAccount are active, if not then return an error response
+    * 4. Derive the sender's balance from the ledger , in short check if the sender has sufficient balance to proceed with the transaction, if not then return an error response
+    * 5. Create transaction(PENDING) , in short create a new transaction with status PENDING and save it to the database, also start a MongoDB session and transaction to ensure atomicity of the operations
+    * 6. Create DEBIT ledger entry , in short create a new ledger entry for the sender's account with type DEBIT and save it to the database within the same MongoDB session
+    * 7.  Create CREDIT ledger entry , in short create a new ledger entry for the receiver's account with type CREDIT and save it to the database within the same MongoDB session
+    * 8. mark transaction COMPLETED , in short update the transaction status to COMPLETED and save it to the database within the same MongoDB session
+    * 9. Commit mongoDB session , in short commit the MongoDB session to persist the changes to the database, if any of the above steps fail then rollback the transaction and return an error response
+    * 10. Send email notification , in short send an email notification to the sender and receiver about the transaction details, if email sending fails then log the error but do not rollback the transaction as the transaction is already completed and persisted in the database
  */
 
 async function createTransaction(req, res) {
@@ -42,9 +43,8 @@ async function createTransaction(req, res) {
         });
     }
 
-
     /**
-     * 2. Validate idempotencykey
+     * 2. Validate idempotencykey to prevent duplicate transactions, in short check if a transaction with the same idempotencyKey already exists in the database, if yes then return the existing transaction details in the response
      */
     const isTransactionAlreadyExists = await transactionModel.findOne({ idempotencyKey:idempotencyKey });
 
@@ -59,7 +59,7 @@ async function createTransaction(req, res) {
 
         if(isTransactionAlreadyExists.status === "PENDING") {
             return res.status(200).json({
-                message: "A transaction is astill processing",
+                message: "A transaction is still processing",
                 status: "failed"
             });
         }
@@ -109,6 +109,49 @@ if(balance < amount) {
 /**
  * 5. Create transaction(PENDING)
  */
+ const session = await mongoose.startSession();
+    session.startTransaction(); // Start a MongoDB session and transaction to ensure atomicity of the operations , ye ensure karega ki step 5,6,7,8 ek atomic unit ke roop me execute ho jaye, agar inme se koi bhi step fail hota hai to pura transaction rollback ho jayega aur database me koi inconsistent state nahi aayegi.
+    
+    const transaction = await transactionModel.create([{
+    fromAccount,
+    toAccount,
+    amount,
+    idempotencyKey,
+    status: "PENDING"
+}], { session }); // we pass session as second parameter in create to ensure that atomicity 
 
+    const debitLedgerEntry = await ledgerModel.create({
+        account:fromAccount,
+        amount:amount,
+        transaction:transaction_id,
+        type:"DEBIT"
+    },{session})
+
+    const creditLedgerEntry = await ledgerModel.create({
+        account:toAccount,
+        amount:amount,
+        transaction:transaction_id,
+        type:"CREDIT"
+    },{session})
+
+    transaction.status = "COMPLETED"
+    await transaction.save({ session })
+
+    await session.commitTransaction()
+    session.endSession()
+
+    /**
+     * 10. Send email notification
+     */
+    await emailService.sendTransactionEmail(req.user.email,req.user.name,amount,toAccount)
+
+    return res.status(201).json({
+        message: "Transaction completed successfully",
+        transaction: transaction
+    })
 
 }
+
+module.exports = {
+    createTransaction
+};

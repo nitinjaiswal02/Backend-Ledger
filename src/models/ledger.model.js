@@ -29,7 +29,7 @@ const ledgerSchema = new mongoose.Schema({
      }
     })
 
-    function preventLedgerModification(){
+    function preventLedgerModification(){   // Middleware function to prevent updates to ledger entries because they are immutable after creation
         throw new Error("Ledger entries cannot be modified after creation to ensure data integrity and accurate financial records");    
     }
 

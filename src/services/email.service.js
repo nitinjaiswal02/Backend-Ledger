@@ -1,14 +1,11 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({ //
-  service: 'gmail',
+const transporter = nodemailer.createTransport({
+  service: "gmail",
   auth: {
-    type: 'OAuth2',
     user: process.env.EMAIL_USER,
-    clientId: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
-    refreshToken: process.env.REFRESH_TOKEN,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -47,6 +44,50 @@ async function sendRegistrationEmail(to, name) {
   await sendEmail(to, subject, text, html);
 }
 
+async function sendTransactionEmail(userEmail,name,amount,toAccount){
+  const subject = "Transaction Successful";
+  const text = `Hi ${name},
+
+Your transaction of ₹${amount} to ${toAccount} was completed successfully.
+
+Best regards,
+The Backend Ledger Team`;
+
+  const html = `
+    <p>Hi ${name},</p>
+    <p>Your transaction of <strong>₹${amount}</strong> to <strong>${toAccount}</strong> was completed successfully.</p>
+    <p>Best regards,<br>The Backend Ledger Team</p>
+  `;
+
+  await sendEmail(userEmail, subject, text, html);
+
+}
+
+async function sendTransactionFailureEmail(userEmail,name,amount,toAccount){
+    const subject = "Transaction Failed";
+
+  const text = `Hi ${name},
+
+Your transaction of ₹${amount} to ${toAccount} could not be completed.
+
+Please try again later.
+
+Best regards,
+The Backend Ledger Team`;
+
+  const html = `
+    <p>Hi ${name},</p>
+    <p>Your transaction of <strong>₹${amount}</strong> to <strong>${toAccount}</strong> could not be completed.</p>
+    <p>Please try again later.</p>
+    <p>Best regards,<br>The Backend Ledger Team</p>
+  `;
+
+  await sendEmail(userEmail, subject, text, html);
+  
+}
+
 module.exports = {
   sendRegistrationEmail,
+  sendTransactionEmail,
+  sendTransactionFailureEmail,
 };

@@ -4,7 +4,7 @@ require("dotenv").config();
 
 
 // This middleware will be used to protect routes that require authentication. It will check for the presence of a valid JWT token in the request headers or cookies, verify the token, and then attach the authenticated user's information to the request object for use in subsequent middleware or route handlers. If the token is missing or invalid, it will return an appropriate error response.
-async function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) { // ye  middleware keval unhi requests ko aage jane dega jisme valid jwt token hoga. 
     const token = req.cookies.token || req.headers.authorization?.split(" ")[1]; // Get the token from cookies or Authorization header
 
     if (!token) {
