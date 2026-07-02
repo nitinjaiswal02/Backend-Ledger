@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
         required: [true, "Name is required for creating a user account"],
 
     },
+    systemUser: {   
+        type: Boolean,
+        default: false, // Default value is false, indicating that the user is not a system user unless explicitly set to true
+        immutable: true, // Make the systemUser field immutable programatically, only database administrator can set this field to true, it cannot be changed by the user or any other means after the user account is created
+    }
 }   , {
     timestamps: true, // Automatically add createdAt and updatedAt fields to the schema
 

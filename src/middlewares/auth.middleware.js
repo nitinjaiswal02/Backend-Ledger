@@ -26,4 +26,33 @@ async function authMiddleware(req, res, next) { // ye  middleware keval unhi req
     }
 }
 
-module.exports = authMiddleware;
+async function authSystemuserMiddleware(req, res, next) { // ye  middleware keval unhi requests ko aage jane dega jisme valid jwt token hoga aur user system user hoga.
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1]; // Get the token from cookies or Authorization header
+
+    if (!token) {
+        return res.status(401).json({ message: "Authentication token is missing, please log in to access this resource" });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET); // Verify the token using the secret key
+        const user = await userModel.findById(decoded.userId).select("+systemUser"); // Find the user associated with the token and include the systemUser field in the query result
+
+        if (!user) {
+            return res.status(401).json({ message: "Invalid authentication token, user not found" });
+        }
+
+        if (!user.systemUser) {
+            return res.status(403).json({ message: "Access denied, only system users can access this resource" });
+        }
+
+        req.user = user; // Attach the user object to the request for use in subsequent middleware or route handlers
+        next(); // Proceed to the next middleware or route handler
+    } catch (error) {
+        return res.status(401).json({ message: "Invalid authentication token, please login again" });
+    }
+}
+
+module.exports = {
+    authMiddleware,
+    authSystemuserMiddleware
+};
