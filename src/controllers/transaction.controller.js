@@ -113,43 +113,40 @@ if(balance < amount) {
  const session = await mongoose.startSession();
     session.startTransaction(); // Start a MongoDB session and transaction to ensure atomicity of the operations , ye ensure karega ki step 5,6,7,8 ek atomic unit ke roop me execute ho jaye, agar inme se koi bhi step fail hota hai to pura transaction rollback ho jayega aur database me koi inconsistent state nahi aayegi.
     
-    const transaction = await transactionModel.create([{
+  const transaction = await transactionModel.create([{
     fromAccount,
     toAccount,
     amount,
     idempotencyKey,
     status: "PENDING"
-}], { session }); // we pass session as second parameter in create to ensure that atomicity 
+}], { session });
 
-    const debitLedgerEntry = await ledgerModel.create({
-        account:fromAccount,
-        amount:amount,
-        transaction:transaction_id,
-        type:"DEBIT"
-    },{session})
+const debitLedgerEntry = await ledgerModel.create([{
+    account: fromAccount,
+    amount: amount,
+    transaction: transaction[0]._id,   // transaction_id nahi, transaction[0]._id
+    type: "DEBIT"
+}], { session });
 
-    const creditLedgerEntry = await ledgerModel.create({
-        account:toAccount,
-        amount:amount,
-        transaction:transaction_id,
-        type:"CREDIT"
-    },{session})
+const creditLedgerEntry = await ledgerModel.create([{
+    account: toAccount,
+    amount: amount,
+    transaction: transaction[0]._id,
+    type: "CREDIT"
+}], { session });
 
-    transaction.status = "COMPLETED"
-    await transaction.save({ session })
+transaction[0].status = "COMPLETED";
+await transaction[0].save({ session });
 
-    await session.commitTransaction()
-    session.endSession()
+await session.commitTransaction();
+session.endSession();
 
-    /**
-     * 10. Send email notification
-     */
-    await emailService.sendTransactionEmail(req.user.email,req.user.name,amount,toAccount)
+await emailService.sendTransactionEmail(req.user.email, req.user.name, amount, toAccount);
 
-    return res.status(201).json({
-        message: "Transaction completed successfully",
-        transaction: transaction
-    })
+return res.status(201).json({
+    message: "Transaction completed successfully",
+    transaction: transaction[0]
+});
 
 }
 
@@ -208,40 +205,77 @@ if (existingTransaction) {
     });
 }
 
-        const transaction = await transactionModel.create({ 
-            fromAccount:fromUserAccount._id,
-            toAccount,
-            amount,
-            idempotencyKey,
-            status: "PENDING"
-        });
+    //     const transaction = await transactionModel.create({ 
+    //         fromAccount:fromUserAccount._id,
+    //         toAccount,
+    //         amount,
+    //         idempotencyKey,
+    //         status: "PENDING"
+    //     });
 
 
-        const debitLedgerEntry = await ledgerModel.create([{
-            account:fromUserAccount._id,
-            amount:amount,
-            transaction:transaction._id,
-            type:"DEBIT"
-        }], { session });
+    //     const debitLedgerEntry = await ledgerModel.create([{
+    //         account:fromUserAccount._id,
+    //         amount:amount,
+    //         transaction:transaction._id,
+    //         type:"DEBIT"
+    //     }], { session });
 
-        const creditLedgerEntry = await ledgerModel.create([{
-            account:toAccount,
-            amount:amount,
-            transaction:transaction._id,
-            type:"CREDIT"
-        }], { session });
+    //     const creditLedgerEntry = await ledgerModel.create([{
+    //         account:toAccount,
+    //         amount:amount,
+    //         transaction:transaction._id,
+    //         type:"CREDIT"
+    //     }], { session });
 
-        transaction.status = "COMPLETED"
-        await transaction.save({ session })
+    //     transaction.status = "COMPLETED"
+    //     await transaction.save({ session })
 
-        await session.commitTransaction()
-        session.endSession()
+    //     await session.commitTransaction()
+    //     session.endSession()
 
-        return res.status(201).json({
-            message: "Initial funds transaction completed successfully",
-            transaction: transaction
-        })
-    }
+    //     return res.status(201).json({
+    //         message: "Initial funds transaction completed successfully",
+    //         transaction: transaction
+    //     })
+    // }
+
+    const transaction = await transactionModel.create([{
+    fromAccount,
+    toAccount,
+    amount,
+    idempotencyKey,
+    status: "PENDING"
+}], { session });
+
+const debitLedgerEntry = await ledgerModel.create([{
+    account: fromAccount,
+    amount: amount,
+    transaction: transaction[0]._id,   // fixed: use transaction[0]._id
+    type: "DEBIT"
+}], { session });   // also wrapped in array + session added here
+
+const creditLedgerEntry = await ledgerModel.create([{
+    account: toAccount,
+    amount: amount,
+    transaction: transaction[0]._id,   // fixed
+    type: "CREDIT"
+}], { session });   // also wrapped in array + session added here
+
+transaction[0].status = "COMPLETED";
+await transaction[0].save({ session });
+
+await session.commitTransaction();
+session.endSession();
+
+await emailService.sendTransactionEmail(req.user.email, req.user.name, amount, toAccount);
+
+return res.status(201).json({
+    message: "Transaction completed successfully",
+    transaction: transaction[0]   // fixed
+});
+
+}
 
 
 module.exports = {

@@ -28,7 +28,7 @@ accountSchema.index({ user: 1 , status: 1}); // Create an compound index on the 
 
 
 accountSchema.methods.getBalance = async function () { // This method calculates the current balance of the account by aggregating the ledger entries associated with the account. It sums up all the CREDIT entries and subtracts all the DEBIT entries to derive the current balance. The method uses MongoDB's aggregation framework to perform this calculation efficiently.
-    const ledgerData = await ledgerModrl.aggregate([ // use aggregate to run custom queries on database 
+    const balanceData = await ledgerModrl.aggregate([ // use aggregate to run custom queries on database 
         { $match: { account: this._id } }, // Match ledger entries for the current account
         {
             $group: {
